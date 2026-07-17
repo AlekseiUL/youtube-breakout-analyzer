@@ -451,8 +451,25 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--project-root", default=str(DEFAULT_PROJECT_ROOT))
     parser.add_argument("--niche", choices=["walking", "ai-automation"], default="walking")
     parser.add_argument("--mode", choices=["metadata-only", "metadata+comments", "metadata+visual", "full-public"], default="full-public")
-    parser.add_argument("--force", action="store_true", help="Overwrite known fixture files. No broad deletion is performed.")
+    parser.add_argument(
+        "--force",
+        action="store_true",
+        help="Refresh known fixture files; saved run copies use the next free suffix. No broad deletion is performed.",
+    )
     return parser
+
+
+def next_fixture_run_id(project_root: Path, niche: str) -> str:
+    base = f"fixture-{niche}"
+    runs_root = project_root / "result" / "breakout-runs"
+    candidate = base
+    suffix = 2
+    while True:
+        run_dir = safe_child_path(runs_root, candidate, field="run_id")
+        if not run_dir.exists() and not run_dir.is_symlink():
+            return candidate
+        candidate = f"{base}-{suffix}"
+        suffix += 1
 
 
 def main() -> None:
@@ -471,7 +488,7 @@ def main() -> None:
         top_outliers=25,
         mode=args.mode,
         analysis_at=FIXTURE_AT,
-        run_id=f"fixture-{args.niche}",
+        run_id=next_fixture_run_id(project_root, args.niche),
     ))
     print(json.dumps({
         "fixture": fixture,

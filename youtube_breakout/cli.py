@@ -98,7 +98,11 @@ def build_parser() -> argparse.ArgumentParser:
     add_common_project(fixture)
     fixture.add_argument("--niche", choices=("walking", "ai-automation"), default="walking")
     fixture.add_argument("--mode", choices=MODES, default="full-public")
-    fixture.add_argument("--force", action="store_true")
+    fixture.add_argument(
+        "--force",
+        action="store_true",
+        help="Refresh known fixture files while preserving immutable run copies.",
+    )
 
     full = sub.add_parser("full", help="Collect public data, build baselines, and analyze.")
     add_common_project(full)

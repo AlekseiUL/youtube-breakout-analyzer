@@ -223,6 +223,16 @@ def installed_cli_smoke(tmp: Path, wheel: Path) -> int:
     if missing:
         return fail("installed CLI init missing: " + ", ".join(path.name for path in missing))
     run([str(PYTHON), "scripts/privacy_scan.py", str(project)])
+    fixture_project = tmp / "installed-fixture"
+    run([
+        str(cli), "fixture",
+        "--project-root", str(fixture_project),
+        "--niche", "walking",
+        "--force",
+    ], cwd=smoke_cwd, env=smoke_env)
+    rc = assert_fixture_outputs(fixture_project)
+    if rc:
+        return rc
     return 0
 
 

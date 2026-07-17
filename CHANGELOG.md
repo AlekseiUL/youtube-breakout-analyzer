@@ -18,3 +18,5 @@ All notable changes are documented here.
 - Anonymous deterministic offline fixtures.
 - Standalone Hermes Agent Skill.
 - Privacy and release-gate scripts.
+- Complete English-first and Russian-second release documentation.
+- Python 3.10–3.12 CI plus built-wheel installed-package offline fixture smoke.

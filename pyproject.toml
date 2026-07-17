@@ -34,6 +34,11 @@ all = ["Pillow>=10.0"]
 [project.scripts]
 youtube-breakout = "youtube_breakout.cli:main"
 
+[project.urls]
+Homepage = "https://github.com/AlekseiUL/youtube-breakout-analyzer"
+Repository = "https://github.com/AlekseiUL/youtube-breakout-analyzer"
+Issues = "https://github.com/AlekseiUL/youtube-breakout-analyzer/issues"
+
 [tool.hatch.build.targets.wheel]
 packages = ["youtube_breakout"]
 

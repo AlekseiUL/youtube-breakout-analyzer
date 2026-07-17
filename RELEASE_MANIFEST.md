@@ -16,6 +16,7 @@
 - optional public enrichment layers
 - three niche configs
 - anonymous fixtures and tests
+- complete English-first and Russian-second public documentation
 - standalone Hermes Agent Skill
 - methodology, privacy, security, and contribution docs
 - privacy and release-gate scripts
@@ -35,13 +36,13 @@
 
 The candidate is releasable only after `python scripts/release_gate.py` exits successfully with `RELEASE_GATE_OK`. A successful gate verifies:
 
-- unit/integration/security-negative suite: `62 passed, 4 subtests passed`;
+- unit/integration/security-negative suite passes;
 - deterministic offline fixture: all required JSON/CSV/Markdown artifacts created and privacy-scanned; core analysis JSON parsed and checked;
 - wheel and sdist archives: built into a temporary directory and archive-checked;
-- clean wheel install: installed CLI `youtube-breakout --version` and installed `init` smoke passed;
+- clean wheel install: installed CLI `youtube-breakout --version`, `init`, and the full offline `fixture` smoke passed;
 - standalone skill: root and `skills/youtube-breakout-analyzer/SKILL.md` consistency validated;
 - privacy scan: `PRIVACY_SCAN_OK`;
-- generated fixture outputs: no private absolute home/workspace/project-root path leakage;
+- source and installed-package fixture outputs: no private absolute home/workspace/project-root path leakage;
 - final success marker: `RELEASE_GATE_OK`.
 
 Live YouTube collection is not part of the default release gate. It is a separate opt-in command because public platform availability is nondeterministic. The default gate may read from the configured Python package index for build isolation and while installing the built wheel and its declared runtime dependencies into a clean virtual environment.

@@ -148,6 +148,7 @@ class BreakoutAnalyzerTests(unittest.TestCase):
             run_copy = json.loads(
                 (root / "result" / "breakout-runs" / "fixture-walking" / "breakout-analysis.json").read_text(encoding="utf-8")
             )
+            original_run_copy = json.dumps(run_copy, sort_keys=True)
             self.assertEqual(latest["outputs"], run_copy["outputs"])
             for rel in [
                 "result/breakout-analysis.json",
@@ -181,6 +182,32 @@ class BreakoutAnalyzerTests(unittest.TestCase):
             )
             self.assertNotEqual(refused.returncode, 0)
             self.assertIn("rerun with --force", refused.stderr)
+
+            forced = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "youtube_breakout.cli",
+                    "fixture",
+                    "--project-root",
+                    str(root),
+                    "--niche",
+                    "walking",
+                    "--force",
+                ],
+                cwd=str(ROOT),
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+            self.assertEqual(json.loads(forced.stdout)["niche"], "walking")
+            second_run = root / "result" / "breakout-runs" / "fixture-walking-2" / "breakout-analysis.json"
+            self.assertTrue(second_run.exists())
+            preserved = json.loads(
+                (root / "result" / "breakout-runs" / "fixture-walking" / "breakout-analysis.json").read_text(encoding="utf-8")
+            )
+            self.assertEqual(json.dumps(preserved, sort_keys=True), original_run_copy)
+
     def test_all_public_modes_preserve_explicit_coverage(self) -> None:
         expectations = {
             "metadata-only": ("NOT_REQUESTED", "NOT_REQUESTED", "NOT_REQUESTED"),
