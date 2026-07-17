@@ -70,7 +70,7 @@ def build_parser() -> argparse.ArgumentParser:
         prog="youtube-breakout",
         description="Find channel-normalized YouTube breakout videos from public signals.",
     )
-    parser.add_argument("--version", action="version", version="youtube-breakout 0.1.0")
+    parser.add_argument("--version", action="version", version="youtube-breakout 0.1.1")
     sub = parser.add_subparsers(dest="command", required=True)
 
     init = sub.add_parser("init", help="Create an editable local analysis instance.")

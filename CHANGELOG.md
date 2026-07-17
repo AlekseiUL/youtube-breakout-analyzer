@@ -2,6 +2,13 @@
 
 All notable changes are documented here.
 
+## [0.1.1] - 2026-07-17
+
+### Added
+
+- Public README hero supplied and approved by the project owner.
+- Live GitHub Actions status badge.
+
 ## [0.1.0] - 2026-07-17
 
 ### Added

@@ -119,7 +119,10 @@ def safe_extract_tar(archive: Path, dest: Path) -> None:
         for member in tf.getmembers():
             target = (dest / member.name).resolve()
             target.relative_to(dest.resolve())
-        tf.extractall(dest)
+        if sys.version_info >= (3, 12):
+            tf.extractall(dest, filter="data")
+        else:
+            tf.extractall(dest)
 
 
 def safe_extract_zip(archive: Path, dest: Path) -> None:

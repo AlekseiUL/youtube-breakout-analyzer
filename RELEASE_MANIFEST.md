@@ -1,10 +1,10 @@
-# Release Manifest — 0.1.0
+# Release Manifest — 0.1.1
 
 ## Artifact
 
 - Repository: `youtube-breakout-analyzer`
-- Release type: local public GitHub candidate
-- Default state: not published
+- Release type: public GitHub release
+- Canonical repository: `https://github.com/AlekseiUL/youtube-breakout-analyzer`
 - License: MIT
 - Python: 3.10+
 
@@ -21,6 +21,7 @@
 - methodology, privacy, security, and contribution docs
 - privacy and release-gate scripts
 - GitHub Actions CI for Python 3.10–3.12
+- public README hero image with no EXIF, ICC profile, embedded comment, or private metadata
 
 ## Excluded
 
@@ -59,4 +60,4 @@ Optional live public collection smoke:
 python scripts/release_gate.py --live-network-smoke
 ```
 
-A public push requires a separate explicit user action. This repository candidate does not publish itself.
+Public publishing remains an explicit maintainer action; the package never publishes itself.

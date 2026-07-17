@@ -1,8 +1,13 @@
 # YouTube Breakout Analyzer
 
+[![CI](https://github.com/AlekseiUL/youtube-breakout-analyzer/actions/workflows/ci.yml/badge.svg)](https://github.com/AlekseiUL/youtube-breakout-analyzer/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 ![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-3776AB.svg)
 ![Status: alpha](https://img.shields.io/badge/status-alpha-orange.svg)
+
+<p align="center">
+  <img src="docs/assets/youtube-breakout-analyzer-hero.jpg" alt="YouTube Breakout Analyzer — channel-relative breakout research from public signals" width="900">
+</p>
 
 [English](#english) · [Русский](#russian)
 
@@ -44,7 +49,7 @@ youtube-breakout --help
 Expected version for this candidate:
 
 ```text
-youtube-breakout 0.1.0
+youtube-breakout 0.1.1
 ```
 
 Install as an isolated tool with [uv](https://docs.astral.sh/uv/):
@@ -308,7 +313,7 @@ youtube-breakout --help
 Ожидаемая версия этого кандидата:
 
 ```text
-youtube-breakout 0.1.0
+youtube-breakout 0.1.1
 ```
 
 Изолированная установка через [uv](https://docs.astral.sh/uv/):
