@@ -1,0 +1,50 @@
+{
+  "description": "Synthetic public-metadata fixture. All channel names and video IDs are invented.",
+  "analysis_at": "2026-07-16T00:00:00+00:00",
+  "videos": [
+    {
+      "video_id": "fixture_breakout_a",
+      "title": "Rain Night Walk — Quiet Backstreets — No Talking",
+      "video_url": "https://www.youtube.com/watch?v=fixture_breakout_a",
+      "channel_name": "Rain Walks Micro",
+      "channel_url": "https://www.youtube.com/@rainwalksmicro",
+      "published_at": "2026-07-10T00:00:00+00:00",
+      "views": 12000,
+      "comments_count": 180,
+      "duration": "1:04:00"
+    },
+    {
+      "video_id": "fixture_baseline_a",
+      "title": "Clear Day Walking Tour",
+      "video_url": "https://www.youtube.com/watch?v=fixture_baseline_a",
+      "channel_name": "Rain Walks Micro",
+      "channel_url": "https://www.youtube.com/@rainwalksmicro",
+      "published_at": "2026-07-08T00:00:00+00:00",
+      "views": 600,
+      "comments_count": 8,
+      "duration": "42:00"
+    },
+    {
+      "video_id": "fixture_breakout_b",
+      "title": "Snow Morning Walk — Silent Residential Streets",
+      "video_url": "https://www.youtube.com/watch?v=fixture_breakout_b",
+      "channel_name": "Quiet City Walks",
+      "channel_url": "https://www.youtube.com/@quietcitywalks",
+      "published_at": "2026-07-09T00:00:00+00:00",
+      "views": 8000,
+      "comments_count": 90,
+      "duration": "55:00"
+    },
+    {
+      "video_id": "fixture_insufficient",
+      "title": "Rain Walk — Ordinary Neighborhood",
+      "video_url": "https://www.youtube.com/watch?v=fixture_insufficient",
+      "channel_name": "New Walker",
+      "channel_url": "https://www.youtube.com/@newwalker",
+      "published_at": "2026-07-12T00:00:00+00:00",
+      "views": 5000,
+      "comments_count": 70,
+      "duration": "38:00"
+    }
+  ]
+}

@@ -1,0 +1,89 @@
+niche: ai-automation
+label: AI / automation / AI Ops
+playbook_type: ai-automation
+
+thresholds:
+  strong: 5.0
+  breakout: 10.0
+  extreme: 20.0
+
+baseline:
+  min_channel_samples: 5
+  min_topic_samples: 3
+
+small_channel:
+  median_views_max: 50000
+
+niche_keywords:
+  - ai
+  - automation
+  - agent
+  - agents
+  - n8n
+  - zapier
+  - make.com
+  - claude
+  - openai
+  - workflow
+  - ops
+  - tutorial
+
+metadata_features:
+  tool_product:
+    n8n: [n8n]
+    zapier: [zapier]
+    make: [make.com, make automation]
+    claude: [claude, claude code]
+    openai: [openai, chatgpt, gpt]
+  concrete_use_case:
+    invoice_workflow: [invoice, billing, receipt]
+    lead_generation: [lead gen, leads, sales workflow]
+    content_pipeline: [content pipeline, youtube automation, blog automation]
+    support_agent: [support agent, customer support]
+    ops_dashboard: [dashboard, reporting, ops]
+  format:
+    demonstration: [demo, build, built, live, walkthrough]
+    tutorial: [tutorial, how to, step by step, guide]
+    comparison: [vs, versus, compared, alternative]
+    news: [new, update, released, version]
+    case_study: [case study, results, after 30 days]
+  proof:
+    metric_result: [roi, saved hours, revenue, conversion, results, metric]
+    real_client: [client, production, real business]
+  title_promise:
+    specific_outcome: [automate, build, from scratch, in 30 minutes, without code]
+  audience_pain:
+    manual_work: [manual, repetitive, busywork]
+    cost_pressure: [cheap, free, expensive, cost]
+    reliability: [reliable, broke, fails, production]
+    confusion: [confusing, beginner, mistake]
+  freshness:
+    version_sensitive: [new version, update, 2026, latest]
+
+comment_features:
+  audience_signal:
+    implementation_intent: [trying this, i will build, implementing, use this at work]
+    confusion: [confused, not working, error, stuck]
+    trust: [real example, transparent, thanks for showing]
+    buying_intent: [pricing, worth it, should i buy, subscription]
+  audience_pain:
+    manual_work: [manual work, repetitive, saves time]
+    reliability: [broke, error, reliable, production]
+
+visual_features:
+  thumbnail:
+    tool_ui: [ui, workflow, dashboard, nodes]
+    proof_metric: [metric, result, chart, revenue]
+    face_reaction: [face, reaction]
+    text_heavy: [dense/text-or-detail-heavy, text]
+    clean_diagram: [diagram, flow, clean/simple]
+
+duration_buckets:
+  short_demo:
+    min_seconds: 0
+    max_seconds: 899
+  tutorial:
+    min_seconds: 900
+    max_seconds: 2699
+  deep_dive:
+    min_seconds: 2700

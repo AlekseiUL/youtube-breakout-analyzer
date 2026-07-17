@@ -1,0 +1,59 @@
+niche: generic
+label: Generic YouTube topic
+playbook_type: content
+
+thresholds:
+  strong: 5.0
+  breakout: 10.0
+  extreme: 20.0
+
+baseline:
+  min_channel_samples: 5
+  min_topic_samples: 3
+
+small_channel:
+  median_views_max: 50000
+
+niche_keywords: []
+
+metadata_features:
+  title_formula:
+    how_to: [how to, guide, tutorial, step by step]
+    list: [top 5, top 10, mistakes, lessons]
+    challenge: [challenge, days, experiment, tested]
+    comparison: [vs, versus, compared, alternative]
+    case_study: [case study, results, what happened]
+  audience_promise:
+    save_time: [save time, faster, in minutes]
+    learn_skill: [learn, beginner, from scratch]
+    avoid_failure: [avoid, mistake, fails, wrong]
+    evidence: [real example, proof, data, results]
+  format:
+    demonstration: [demo, walkthrough, built]
+    tutorial: [tutorial, how to, guide]
+    documentary: [documentary, story, journey]
+    commentary: [explained, analysis, reaction]
+
+comment_features:
+  audience_motivation:
+    implementation_intent: [trying this, will try, going to use]
+    confusion: [confused, stuck, not working]
+    trust: [real example, transparent, evidence]
+    follow_up_request: [please cover, next video, can you show]
+
+visual_features:
+  thumbnail:
+    high_contrast: [high-contrast]
+    clean_simple: [clean/simple]
+    text_or_detail_heavy: [dense/text-or-detail-heavy]
+    saturated: [saturated/color-pop]
+
+duration_buckets:
+  short:
+    min_seconds: 0
+    max_seconds: 599
+  medium:
+    min_seconds: 600
+    max_seconds: 1799
+  long:
+    min_seconds: 1800

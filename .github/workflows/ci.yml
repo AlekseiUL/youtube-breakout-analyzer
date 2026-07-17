@@ -1,0 +1,41 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.11", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+      - name: Install
+        run: python -m pip install -e '.[test,visual]'
+      - name: Tests
+        run: python -m pytest -p no:cacheprovider
+      - name: Privacy scan
+        run: python scripts/privacy_scan.py .
+      - name: Offline fixture smoke
+        run: >-
+          youtube-breakout fixture
+          --project-root "${RUNNER_TEMP}/youtube-breakout-fixture"
+          --niche walking
+          --force
+      - name: Validate required artifacts
+        run: |
+          test -f "${RUNNER_TEMP}/youtube-breakout-fixture/result/breakout-analysis.json"
+          test -f "${RUNNER_TEMP}/youtube-breakout-fixture/result/breakout-analysis.csv"
+          test -f "${RUNNER_TEMP}/youtube-breakout-fixture/result/breakout-report.md"
+          test -f "${RUNNER_TEMP}/youtube-breakout-fixture/result/PATTERN_BANK.json"
+          test -f "${RUNNER_TEMP}/youtube-breakout-fixture/result/source-ledger.json"

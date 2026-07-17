@@ -1,0 +1,55 @@
+[build-system]
+requires = ["hatchling>=1.25"]
+build-backend = "hatchling.build"
+
+[project]
+name = "youtube-breakout-analyzer"
+version = "0.1.0"
+description = "Local-first YouTube breakout analysis from public metadata, channel baselines, and optional public signals."
+readme = "README.md"
+requires-python = ">=3.10"
+license = {file = "LICENSE"}
+authors = [{name = "YouTube Breakout Analyzer contributors"}]
+keywords = ["youtube", "analytics", "outliers", "content-research", "yt-dlp"]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Environment :: Console",
+  "License :: OSI Approved :: MIT License",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Topic :: Multimedia :: Video",
+]
+dependencies = [
+  "PyYAML>=6.0",
+  "yt-dlp>=2025.1.1",
+]
+
+[project.optional-dependencies]
+visual = ["Pillow>=10.0"]
+test = ["pytest>=8.0", "pytest-cov>=5.0", "build>=1.2"]
+all = ["Pillow>=10.0"]
+
+[project.scripts]
+youtube-breakout = "youtube_breakout.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["youtube_breakout"]
+
+[tool.hatch.build]
+include = [
+  "youtube_breakout/**/*.py",
+  "youtube_breakout/configs/**/*.yaml",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+
+[tool.coverage.run]
+source = ["youtube_breakout"]
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = true

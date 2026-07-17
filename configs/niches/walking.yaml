@@ -1,0 +1,117 @@
+niche: walking
+label: Silent walking / city walks
+playbook_type: walking
+
+thresholds:
+  strong: 5.0
+  breakout: 10.0
+  extreme: 20.0
+
+baseline:
+  min_channel_samples: 5
+  min_topic_samples: 3
+
+small_channel:
+  median_views_max: 50000
+
+niche_keywords:
+  - walk
+  - walking
+  - city walk
+  - silent walk
+  - no talking
+  - ambient
+  - rain walk
+  - snow walk
+  - night walk
+  - virtual walk
+  - treadmill
+
+metadata_features:
+  city:
+    tokyo: [tokyo, shibuya, shinjuku]
+    seoul: [seoul, hongdae, gangnam]
+    paris: [paris, montmartre, marais]
+    lisbon: [lisbon, rustaveli, sololaki]
+  country:
+    japan: [japan, tokyo, osaka, kyoto]
+    korea: [korea, seoul]
+    france: [france, paris]
+    portugal: [portugal, lisbon]
+  place_type:
+    famous_landmark: [landmark, tower, shrine, cathedral, palace, famous]
+    ordinary_neighborhood: [ordinary, neighborhood, residential, backstreet, local streets, non tourist, non-tourist]
+    market: [market, bazaar, street food]
+  daypart:
+    dawn: [dawn, sunrise, early morning]
+    day: [day walk, daytime, afternoon]
+    golden_hour: [golden hour, sunset]
+    night: [night, evening, midnight, neon]
+  weather:
+    clear: [clear, sunny]
+    rain: [rain, rainy, storm, wet street, umbrella]
+    snow: [snow, snowy, snowfall]
+    fog: [fog, mist]
+    heat: [heatwave, hot summer]
+  event:
+    festival: [festival, matsuri, parade]
+    protest: [protest, rally, march]
+    market: [market, bazaar]
+    nightlife: [nightlife, bar street]
+    holiday: [christmas, new year, holiday]
+    ordinary: [ordinary, weekday, daily life]
+  crowd_density:
+    empty: [empty streets, quiet streets, deserted]
+    moderate: [weekday walk, local streets]
+    crowded: [crowded, packed, rush hour, busy]
+  title_promise:
+    place_condition_moment_format: [walk, walking tour, 4k, no talking, rain, night, snow, ambient]
+  production_marker:
+    resolution_4k: [4k, uhd]
+    resolution_8k: [8k]
+    hdr: [hdr]
+    no_talking: [no talking, silent, no commentary]
+    ambient_sound: [ambient, binaural, asmr, real sound]
+  route_arc:
+    quiet_to_busy_payoff: [quiet to busy, backstreets to center, hidden streets to landmark]
+
+comment_features:
+  weather:
+    rain: [rain sound, rainy, the rain, wet streets]
+    snow: [snow sound, snowy, snowfall]
+  audience_motivation:
+    virtual_travel: [virtual travel, feels like i am there, walk with you]
+    nostalgia_diaspora: [miss this city, homesick, grew up there, reminds me of home]
+    trip_planning: [planning my trip, will visit, going there]
+    treadmill: [treadmill, indoor walk, walking pad]
+    relaxation_sleep_work: [relaxing, sleep, study, work background, calming]
+    asmr_ambient: [asmr, binaural, ambient sound, rain sound]
+    safety_observation: [safe at night, looks safe, real life]
+    ordinary_neighborhoods: [ordinary neighborhood, local streets, not touristy]
+    route_request: [what route, where is this, can you walk, please film]
+
+visual_features:
+  weather:
+    rain: [rain, wet street, reflection, reflections, umbrella]
+    snow: [snow, snowfall]
+  thumbnail:
+    depth: [depth, deep street, perspective, vanishing point]
+    reflections: [reflection, reflections, wet street]
+    neon: [neon, saturated/color-pop]
+    crowd: [crowd, crowded, packed]
+    landmark: [landmark, tower, shrine, cathedral]
+    single_human: [single person, lone pedestrian]
+    text_free: [no text, text-free]
+
+duration_buckets:
+  short_walk:
+    min_seconds: 0
+    max_seconds: 1199
+  standard_walk:
+    min_seconds: 1200
+    max_seconds: 3599
+  long_walk:
+    min_seconds: 3600
+    max_seconds: 7199
+  very_long_walk:
+    min_seconds: 7200
