@@ -12,7 +12,7 @@ Open a private security advisory in the eventual GitHub repository. Do not inclu
 
 The CLI:
 
-- invokes the locally installed `yt-dlp` executable;
+- invokes the locally installed `yt-dlp` executable through a wrapper that forces `--ignore-config` and rejects cookie/config options;
 - makes outbound requests to public YouTube and thumbnail URLs;
 - reads niche YAML and local project artifacts;
 - writes only under the user-selected project root, except normal Python/package caches;
@@ -29,6 +29,8 @@ The CLI:
 - Do not point `--project-root` at a directory containing unrelated sensitive files.
 - Review artifacts before publishing them.
 - Keep live limits small to reduce rate-limit and abuse risk.
+- Treat run ids and video ids as untrusted path components; invalid slugs and symlink escapes are rejected.
+- Thumbnail downloads are HTTPS-only, host-restricted to YouTube thumbnail hosts, redirect-validated, byte-capped, and image-validated.
 
 ## Out of scope
 

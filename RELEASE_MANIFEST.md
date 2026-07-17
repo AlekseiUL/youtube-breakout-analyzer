@@ -31,27 +31,31 @@
 - telemetry and upload services
 - browser automation fallback
 
-## Verified local candidate
+## Required local verification
 
-- unit/integration suite: `14 passed, 4 subtests passed`;
-- deterministic offline fixture: all required JSON/CSV/Markdown artifacts created and parsed;
-- live neutral-topic smoke: 3 search candidates, 3 channel baselines built with 6 samples each, 21 analyzed records, 2 qualified channel-normalized outliers;
-- small/established split: both branches populated in the live smoke;
-- clean wheel install: `youtube-breakout 0.1.0` and installed-copy fixture passed;
-- clean temporary `HERMES_HOME`: skill detected by `hermes skills list`;
+The candidate is releasable only after `python scripts/release_gate.py` exits successfully with `RELEASE_GATE_OK`. A successful gate verifies:
+
+- unit/integration/security-negative suite: `62 passed, 4 subtests passed`;
+- deterministic offline fixture: all required JSON/CSV/Markdown artifacts created and privacy-scanned; core analysis JSON parsed and checked;
+- wheel and sdist archives: built into a temporary directory and archive-checked;
+- clean wheel install: installed CLI `youtube-breakout --version` and installed `init` smoke passed;
+- standalone skill: root and `skills/youtube-breakout-analyzer/SKILL.md` consistency validated;
 - privacy scan: `PRIVACY_SCAN_OK`;
-- generated fixture and live outputs: no `/Users/` home-path leakage;
-- release gate: `RELEASE_GATE_OK`.
+- generated fixture outputs: no private absolute home/workspace/project-root path leakage;
+- final success marker: `RELEASE_GATE_OK`.
 
-Live outputs are temporary verification artifacts and are not included in the repository.
+Live YouTube collection is not part of the default release gate. It is a separate opt-in command because public platform availability is nondeterministic. The default gate may read from the configured Python package index for build isolation and while installing the built wheel and its declared runtime dependencies into a clean virtual environment.
 
 ## Required release gate
 
 ```bash
-python -m pytest
-python -m youtube_breakout.cli fixture --project-root /tmp/yba-release-fixture --force
-python scripts/privacy_scan.py .
 python scripts/release_gate.py
+```
+
+Optional live public collection smoke:
+
+```bash
+python scripts/release_gate.py --live-network-smoke
 ```
 
 A public push requires a separate explicit user action. This repository candidate does not publish itself.

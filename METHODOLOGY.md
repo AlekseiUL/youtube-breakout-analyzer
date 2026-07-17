@@ -18,6 +18,8 @@ Public title, URL, channel, publication time, duration, views, comment count, de
 
 Recent public videos for the same channel. The default statistic is median views because it is less sensitive than the mean to one historic viral video.
 
+Baseline sufficiency is based on usable public view samples. Missing view counts remain missing and do not inflate the usable sample count.
+
 ### Topic baseline
 
 When enough comparable candidates exist, the analyzer estimates median views/day for a topic key and records a topic ratio. This is secondary to the channel baseline.
@@ -34,13 +36,15 @@ Public creator captions or automatic captions when exposed. Absence is recorded 
 
 Public image bytes and local pixel metrics. These are descriptive proxies, not semantic understanding.
 
+Unavailable or degraded visual artifacts are recorded as coverage gaps and do not add visual evidence credit.
+
 ## 3. Core calculation
 
 ```text
 channel_outlier_multiplier = current_public_views / recent_channel_median_views
 ```
 
-The multiplier is accepted only when the channel baseline meets `min_channel_samples`. Otherwise the status is `INSUFFICIENT_CHANNEL_BASELINE`.
+The multiplier is accepted only when the channel baseline meets `min_channel_samples` using usable public view samples. Otherwise the status is `INSUFFICIENT_CHANNEL_BASELINE`.
 
 The default thresholds are configurable:
 
@@ -125,6 +129,6 @@ The correct use of a pattern is a controlled production hypothesis:
 
 ## 9. Reproducibility
 
-Offline fixture runs pin `analysis_at` and use synthetic anonymous records. Live runs store timestamps, source paths, query provenance, coverage states, and immutable run artifacts.
+Offline fixture runs pin `analysis_at` and use synthetic anonymous records. Live runs store timestamps, project-relative source labels, query provenance, coverage states, and immutable run artifacts.
 
 Public platform results can change, so a live run is reproducible as an analysis of its saved input artifacts, not necessarily as a future network response.

@@ -4,6 +4,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import shutil
 import subprocess
 import time
 from collections import Counter
@@ -14,7 +15,9 @@ from typing import Any, Iterable
 
 import yaml
 
-ROOT = Path(os.environ.get("YOUTUBE_INTEL_PROJECT_ROOT", str(Path(__file__).resolve().parents[1]))).resolve()
+PACKAGE_ROOT = Path(__file__).resolve().parent
+TOOL_ROOT = PACKAGE_ROOT.parent
+ROOT = Path(os.environ.get("YOUTUBE_INTEL_PROJECT_ROOT", str(TOOL_ROOT))).resolve()
 WATCHLISTS_DIR = ROOT / "watchlists"
 DATA_DIR = ROOT / "data"
 SEARCH_DIR = DATA_DIR / "search"
@@ -30,6 +33,19 @@ REPORTS_DIR = DATA_DIR / "reports"
 EXAMPLES_DIR = ROOT / "examples"
 
 YOUTUBE_BASE = "https://www.youtube.com/watch?v="
+YT_DLP_EXECUTABLE = shutil.which("yt-dlp") or "yt-dlp"
+SAFE_PATH_SEGMENT = re.compile(r"^[A-Za-z0-9_-][A-Za-z0-9._-]{0,127}$")
+WINDOWS_ABSOLUTE_PATH = re.compile(r"(?i)^(?:[a-z]:[\\/]|\\\\)")
+WINDOWS_HOME_PATH = re.compile(r"(?i)\b[a-z]:[\\/]users[\\/][^\\/\s\"')]+(?:[\\/][^\\/\s\"')]+)*")
+POSIX_HOME_PATH = re.compile(r"/(?:Users|home)/[A-Za-z0-9._-]+(?:/[^\s\"')]+)*")
+POSIX_WORKSPACE_PATH = re.compile(r"/(?:workspace|workspaces)/[A-Za-z0-9._-]+(?:/[^\s\"')]+)*")
+BLOCKED_YT_DLP_OPTIONS = {
+    "--config-location",
+    "--config-locations",
+    "--cookies",
+    "--cookies-from-browser",
+    "--ignore-config",
+}
 STOPWORDS = {
     "the", "and", "for", "that", "with", "this", "from", "have", "into", "your", "about", "they", "their",
     "what", "when", "where", "which", "there", "would", "could", "should", "been", "were", "them", "then",
@@ -98,6 +114,156 @@ def slugify(value: str) -> str:
     return text or "item"
 
 
+def _path_variants(path: Path) -> list[str]:
+    variants = {str(path), path.as_posix()}
+    try:
+        resolved = path.resolve(strict=False)
+        variants.update({str(resolved), resolved.as_posix()})
+    except OSError:
+        pass
+    return sorted((item.rstrip("/") for item in variants if item), key=len, reverse=True)
+
+
+def _relative_to(candidate: Path, base: Path) -> str | None:
+    try:
+        rel = candidate.resolve(strict=False).relative_to(base.resolve(strict=False))
+    except (OSError, ValueError):
+        return None
+    value = rel.as_posix()
+    return value or "."
+
+
+def public_path_label(path: str | Path | None, root: str | Path | None = None) -> str | None:
+    """Return a stable non-private label for a path-like value."""
+    if path is None:
+        return None
+    text = str(path)
+    if not text:
+        return text
+    if WINDOWS_ABSOLUTE_PATH.match(text):
+        name = re.split(r"[\\/]", text.rstrip("\\/"))[-1] or "path"
+        return f"external:{name}"
+    candidate = Path(text).expanduser()
+    project_root = Path(root).resolve(strict=False) if root is not None else ROOT
+    for base, prefix in (
+        (project_root, ""),
+        (PACKAGE_ROOT, "package:"),
+        (TOOL_ROOT, "repo:"),
+    ):
+        rel = _relative_to(candidate, base)
+        if rel is not None:
+            return f"{prefix}{rel}" if prefix else rel
+    return f"external:{candidate.name or 'path'}"
+
+
+def _is_absolute_path_text(value: str) -> bool:
+    return (
+        value.startswith("/")
+        or value.startswith("~/")
+        or WINDOWS_ABSOLUTE_PATH.match(value) is not None
+    )
+
+
+def _external_path_replacement(match: re.Match[str]) -> str:
+    raw = match.group(0).rstrip("/\\")
+    name = re.split(r"[\\/]", raw)[-1] or "path"
+    return f"external:{name}"
+
+
+def sanitize_string_for_public(value: str, root: str | Path | None = None) -> str:
+    """Remove private absolute path material while preserving useful labels."""
+    if not value:
+        return value
+    project_root = Path(root).resolve(strict=False) if root is not None else ROOT
+    if _is_absolute_path_text(value):
+        return public_path_label(value, project_root) or "external:path"
+
+    sanitized = value
+    for base in (project_root, PACKAGE_ROOT, TOOL_ROOT):
+        for variant in _path_variants(base):
+            replacement = "." if base == project_root else ("package:" if base == PACKAGE_ROOT else "repo:")
+            sanitized = sanitized.replace(variant, replacement.rstrip("/"))
+    sanitized = POSIX_HOME_PATH.sub(_external_path_replacement, sanitized)
+    sanitized = POSIX_WORKSPACE_PATH.sub(_external_path_replacement, sanitized)
+    sanitized = WINDOWS_HOME_PATH.sub(_external_path_replacement, sanitized)
+    return sanitized
+
+
+def sanitize_for_public(value: Any, root: str | Path | None = None) -> Any:
+    if isinstance(value, Path):
+        return public_path_label(value, root)
+    if isinstance(value, str):
+        return sanitize_string_for_public(value, root)
+    if isinstance(value, list):
+        return [sanitize_for_public(item, root) for item in value]
+    if isinstance(value, tuple):
+        return [sanitize_for_public(item, root) for item in value]
+    if isinstance(value, dict):
+        return {key: sanitize_for_public(item, root) for key, item in value.items()}
+    return value
+
+
+def validate_path_slug(value: str | None, *, field: str = "path segment") -> str:
+    text = str(value or "").strip()
+    if not text:
+        raise ValueError(f"invalid {field}: empty")
+    if _is_absolute_path_text(text) or "/" in text or "\\" in text or ".." in text:
+        raise ValueError(f"invalid {field}: path traversal is not allowed")
+    if not SAFE_PATH_SEGMENT.fullmatch(text):
+        raise ValueError(f"invalid {field}: expected a stable slug")
+    return text
+
+
+def safe_child_path(root: str | Path, *parts: str, field: str = "path segment") -> Path:
+    base = Path(root).resolve(strict=False)
+    candidate = Path(root)
+    for part in parts:
+        candidate = candidate / validate_path_slug(part, field=field)
+    resolved = candidate.resolve(strict=False)
+    try:
+        resolved.relative_to(base)
+    except ValueError as exc:
+        raise ValueError(f"invalid {field}: resolved path escapes output root") from exc
+    return candidate
+
+
+def optional_int(value: Any) -> int | None:
+    if value in (None, ""):
+        return None
+    try:
+        return int(value)
+    except Exception:
+        return None
+
+
+def max_optional_int(*values: Any) -> int | None:
+    parsed = [item for item in (optional_int(value) for value in values) if item is not None]
+    return max(parsed) if parsed else None
+
+
+def _validate_yt_dlp_options(options: list[str]) -> None:
+    for token in options:
+        if token == "--":
+            raise ValueError("yt-dlp option sentinel is controlled by run_yt_dlp")
+        option = token.split("=", 1)[0]
+        if option in BLOCKED_YT_DLP_OPTIONS:
+            raise ValueError(f"blocked yt-dlp option: {option}")
+
+
+def run_yt_dlp(
+    options: list[str],
+    targets: list[str],
+    *,
+    cwd: str | Path | None = None,
+    timeout_sec: float | None = None,
+) -> subprocess.CompletedProcess[str]:
+    if not targets:
+        raise ValueError("yt-dlp requires at least one target")
+    _validate_yt_dlp_options(options)
+    command = [YT_DLP_EXECUTABLE, "--ignore-config", *options, "--", *[str(target) for target in targets]]
+    return run_command(command, cwd=cwd, timeout_sec=timeout_sec)
+
+
 def load_yaml(path: str | Path) -> Any:
     with Path(path).open("r", encoding="utf-8") as fh:
         return yaml.safe_load(fh) or {}
@@ -107,7 +273,7 @@ def write_json(path: str | Path, data: Any) -> None:
     target = Path(path)
     target.parent.mkdir(parents=True, exist_ok=True)
     with target.open("w", encoding="utf-8") as fh:
-        json.dump(data, fh, ensure_ascii=False, indent=2)
+        json.dump(sanitize_for_public(data), fh, ensure_ascii=False, indent=2)
         fh.write("\n")
 
 
@@ -117,7 +283,7 @@ def write_jsonl(path: str | Path, rows: Iterable[dict[str, Any]]) -> int:
     count = 0
     with target.open("w", encoding="utf-8") as fh:
         for row in rows:
-            fh.write(json.dumps(row, ensure_ascii=False) + "\n")
+            fh.write(json.dumps(sanitize_for_public(row), ensure_ascii=False) + "\n")
             count += 1
     return count
 
@@ -128,14 +294,14 @@ def append_jsonl(path: str | Path, rows: Iterable[dict[str, Any]]) -> int:
     count = 0
     with target.open("a", encoding="utf-8") as fh:
         for row in rows:
-            fh.write(json.dumps(row, ensure_ascii=False) + "\n")
+            fh.write(json.dumps(sanitize_for_public(row), ensure_ascii=False) + "\n")
             count += 1
     return count
 
 
 def read_json(path: str | Path) -> Any:
     with Path(path).open("r", encoding="utf-8") as fh:
-        return json.load(fh)
+        return sanitize_for_public(json.load(fh))
 
 
 def read_jsonl(path: str | Path) -> list[dict[str, Any]]:
@@ -147,7 +313,7 @@ def read_jsonl(path: str | Path) -> list[dict[str, Any]]:
         for line in fh:
             line = line.strip()
             if line:
-                rows.append(json.loads(line))
+                rows.append(sanitize_for_public(json.loads(line)))
     return rows
 
 
@@ -232,7 +398,7 @@ def parse_timestamp(value: Any) -> str | None:
 def video_url_from_id(video_id: str | None) -> str | None:
     if not video_id:
         return None
-    return f"{YOUTUBE_BASE}{video_id}"
+    return f"{YOUTUBE_BASE}{validate_path_slug(video_id, field='video_id')}"
 
 
 def normalize_video_record(
@@ -263,9 +429,9 @@ def normalize_video_record(
         "channel_url": first_non_empty(raw.get("channel_url"), raw.get("uploader_url")),
         "published_at": first_non_empty(parse_timestamp(raw.get("timestamp")), parse_upload_date(raw.get("upload_date"))),
         "duration": first_non_empty(raw.get("duration_string"), raw.get("duration")),
-        "views": first_non_empty(raw.get("view_count"), raw.get("views_count"), 0),
-        "comments_count": first_non_empty(raw.get("comment_count"), 0),
-        "likes": first_non_empty(raw.get("like_count"), 0),
+        "views": first_non_empty(raw.get("view_count"), raw.get("views_count")),
+        "comments_count": first_non_empty(raw.get("comment_count")),
+        "likes": first_non_empty(raw.get("like_count")),
         "thumbnail_url": thumbnail_url,
         "description_snippet": clean_text((raw.get("description") or "")[:400]),
         "tags": raw.get("tags") or [],

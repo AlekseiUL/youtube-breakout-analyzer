@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import shutil
 import subprocess
 import sys
 from collections import defaultdict
@@ -20,7 +19,9 @@ from .common import (
     load_yaml,
     normalize_video_record,
     now_iso,
-    run_command,
+    optional_int,
+    public_path_label,
+    run_yt_dlp,
     sleep_ms,
     time_slug,
     write_json,
@@ -28,7 +29,6 @@ from .common import (
 )
 
 
-YT_DLP = shutil.which("yt-dlp") or "yt-dlp"
 SEARCH_PROVIDERS = ["ytsearch", "ytsearchdate", "youtube_url", "cache"]
 
 
@@ -53,32 +53,28 @@ def parse_args() -> argparse.Namespace:
 
 
 def fetch_search_entries_yt_dlp(provider: str, query: str, limit: int, timeout_sec: float) -> list[dict[str, Any]]:
-    result = run_command([
-        YT_DLP,
+    result = run_yt_dlp([
         "--dump-single-json",
         "--skip-download",
-        f"{provider}{limit}:{query}",
-    ], timeout_sec=timeout_sec)
+    ], [f"{provider}{limit}:{query}"], timeout_sec=timeout_sec)
     payload = json.loads(result.stdout)
     return payload.get("entries") or []
 
 
 def fetch_search_entries_url(query: str, limit: int, timeout_sec: float) -> list[dict[str, Any]]:
     url = f"https://www.youtube.com/results?search_query={quote_plus(query)}&sp=EgIQAQ%253D%253D"
-    flat = run_command([
-        YT_DLP,
+    flat = run_yt_dlp([
         "--flat-playlist",
         "--playlist-end",
         str(limit),
         "--dump-single-json",
-        url,
-    ], timeout_sec=timeout_sec)
+    ], [url], timeout_sec=timeout_sec)
     payload = json.loads(flat.stdout)
     entries = payload.get("entries") or []
     urls = [f"https://www.youtube.com/watch?v={item['id']}" for item in entries if item.get("id")]
     if not urls:
         return []
-    enriched = run_command([YT_DLP, "--dump-json", "--skip-download", *urls], timeout_sec=timeout_sec)
+    enriched = run_yt_dlp(["--dump-json", "--skip-download"], urls, timeout_sec=timeout_sec)
     rows: list[dict[str, Any]] = []
     for line in enriched.stdout.splitlines():
         line = line.strip()
@@ -174,20 +170,18 @@ def fetch_query_with_fallbacks(
 
 
 def fetch_channel_entries(channel_url: str, limit: int, timeout_sec: float) -> list[dict[str, Any]]:
-    flat = run_command([
-        YT_DLP,
+    flat = run_yt_dlp([
         "--flat-playlist",
         "--playlist-end",
         str(limit),
         "--dump-single-json",
-        channel_url,
-    ], timeout_sec=timeout_sec)
+    ], [channel_url], timeout_sec=timeout_sec)
     payload = json.loads(flat.stdout)
     entries = payload.get("entries") or []
     urls = [f"https://www.youtube.com/watch?v={item['id']}" for item in entries if item.get("id")]
     if not urls:
         return []
-    enriched = run_command([YT_DLP, "--dump-json", "--skip-download", *urls], timeout_sec=timeout_sec)
+    enriched = run_yt_dlp(["--dump-json", "--skip-download"], urls, timeout_sec=timeout_sec)
     rows: list[dict[str, Any]] = []
     for line in enriched.stdout.splitlines():
         line = line.strip()
@@ -241,21 +235,28 @@ def aggregate_channels(videos: list[dict[str, Any]]) -> list[dict[str, Any]]:
                 "channel_url": row.get("channel_url"),
                 "video_count": 0,
                 "queries": set(),
-                "total_views": 0,
+                "total_views": None,
+                "usable_view_samples": 0,
                 "sample_titles": [],
             }
         bucket = buckets[key]
         bucket["video_count"] += 1
         if row.get("query"):
             bucket["queries"].add(row["query"])
-        bucket["total_views"] += int(row.get("views") or 0)
+        views = optional_int(row.get("views"))
+        if views is not None:
+            bucket["total_views"] = (bucket["total_views"] or 0) + views
+            bucket["usable_view_samples"] += 1
         if row.get("title") and len(bucket["sample_titles"]) < 3:
             bucket["sample_titles"].append(row["title"])
     derived = []
     for item in buckets.values():
         item["queries"] = sorted(item["queries"])
         derived.append(item)
-    derived.sort(key=lambda x: (x["video_count"], x["total_views"]), reverse=True)
+    derived.sort(
+        key=lambda x: (x["video_count"], x["total_views"] if x["total_views"] is not None else -1),
+        reverse=True,
+    )
     return derived
 
 
@@ -419,9 +420,9 @@ def main() -> None:
     write_json(channels_path, derived_channels)
 
     print(json.dumps({
-        "bundle_path": str(bundle_path),
-        "videos_path": str(videos_path),
-        "channels_path": str(channels_path),
+        "bundle_path": public_path_label(bundle_path),
+        "videos_path": public_path_label(videos_path),
+        "channels_path": public_path_label(channels_path),
         "videos_count": len(videos),
         "derived_channels_count": len(derived_channels),
         "queries": queries,

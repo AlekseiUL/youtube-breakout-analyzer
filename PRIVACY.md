@@ -26,6 +26,8 @@ Depending on mode, a project directory can contain:
 
 These files remain in the user-selected project directory. The package does not include telemetry or upload logic.
 
+Generated JSON/CSV/Markdown artifacts use project-relative or public labels for local paths. They must not serialize absolute home, project, or workspace paths.
+
 ## User responsibility
 
 Public data can still be personal data. Before sharing a project directory or report:
@@ -43,3 +45,5 @@ Checked-in fixtures are synthetic and use invented channel names and video IDs. 
 ## Browser automation
 
 The base package has no browser automation fallback. If a downstream fork adds one, it must be explicit, opt-in, documented, and must not use account cookies by default.
+
+`yt-dlp` is invoked with `--ignore-config`; collector code rejects cookie and config options so local browser-cookie or user-config state is not inherited by default.

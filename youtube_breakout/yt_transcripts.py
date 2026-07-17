@@ -4,7 +4,6 @@ from __future__ import annotations
 import argparse
 import json
 import re
-import shutil
 import tempfile
 from pathlib import Path
 from typing import Any
@@ -14,15 +13,16 @@ from .common import (
     chunk_text,
     clean_text,
     now_iso,
+    public_path_label,
     resolve_video_inputs,
-    run_command,
+    run_yt_dlp,
+    safe_child_path,
     sleep_ms,
+    validate_path_slug,
     write_json,
     write_text,
 )
 
-
-YT_DLP = shutil.which("yt-dlp") or "yt-dlp"
 DEFAULT_LANGS = ["en", "en-US", "en-GB", "ru", "ru-RU"]
 
 
@@ -40,7 +40,7 @@ def parse_args() -> argparse.Namespace:
 
 
 def fetch_metadata(url: str) -> dict[str, Any]:
-    result = run_command([YT_DLP, "--dump-single-json", "--skip-download", url])
+    result = run_yt_dlp(["--dump-single-json", "--skip-download"], [url])
     return json.loads(result.stdout)
 
 
@@ -72,17 +72,17 @@ def choose_language(meta: dict[str, Any], preferred: list[str]) -> tuple[str | N
 
 
 def download_subtitle(url: str, video_id: str, lang: str, is_generated: bool) -> Path | None:
+    video_id = validate_path_slug(video_id, field="video_id")
     with tempfile.TemporaryDirectory(prefix="yt-transcripts-") as tmpdir:
         output_template = str(Path(tmpdir) / "%(id)s.%(ext)s")
-        args = [YT_DLP, "--skip-download", "--sub-langs", lang, "--sub-format", "vtt", "-o", output_template]
+        args = ["--skip-download", "--sub-langs", lang, "--sub-format", "vtt", "-o", output_template]
         args.append("--write-auto-subs" if is_generated else "--write-subs")
-        args.append(url)
-        run_command(args)
+        run_yt_dlp(args, [url])
         temp_path = Path(tmpdir)
         candidates = sorted(temp_path.glob(f"{video_id}*.vtt"))
         if not candidates:
             return None
-        target_dir = TRANSCRIPTS_DIR / video_id
+        target_dir = safe_child_path(TRANSCRIPTS_DIR, video_id, field="video_id")
         target_dir.mkdir(parents=True, exist_ok=True)
         target = target_dir / candidates[0].name
         target.write_text(candidates[0].read_text(encoding="utf-8", errors="ignore"), encoding="utf-8")
@@ -138,7 +138,7 @@ def main() -> None:
         if not video_id:
             continue
 
-        target_json = TRANSCRIPTS_DIR / video_id / "latest.json"
+        target_json = safe_child_path(TRANSCRIPTS_DIR, video_id, field="video_id") / "latest.json"
         if target_json.exists() and not args.overwrite:
             results.append(json.loads(target_json.read_text(encoding="utf-8")))
             continue
@@ -190,12 +190,12 @@ def main() -> None:
             "transcript_available": bool(transcript_text),
             "status": status,
             "error": error,
-            "raw_subtitle_path": str(raw_path) if raw_path else None,
+            "raw_subtitle_path": public_path_label(raw_path) if raw_path else None,
             "available_manual_languages": sorted((meta.get("subtitles") or {}).keys()) if meta else [],
             "available_auto_languages": sorted((meta.get("automatic_captions") or {}).keys()) if meta else [],
             "source": "yt_dlp_subtitles",
         }
-        out_dir = TRANSCRIPTS_DIR / video_id
+        out_dir = safe_child_path(TRANSCRIPTS_DIR, video_id, field="video_id")
         out_dir.mkdir(parents=True, exist_ok=True)
         write_json(out_dir / "latest.json", record)
         if transcript_text:

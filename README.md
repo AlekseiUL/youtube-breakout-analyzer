@@ -20,6 +20,7 @@ It is not a popularity leaderboard. A video with 50,000 views can be more intere
 - No OAuth, account login, browser cookies, or YouTube Studio metrics.
 - No paid API requirement.
 - No hidden browser automation fallback.
+- No inherited `yt-dlp` user config, cookie files, or browser-cookie options.
 - No claim that an observed pattern caused performance.
 - No promised access to comments, captions, or thumbnails when YouTube does not expose them.
 - No demographic inference, face identification, or private-data enrichment.
@@ -98,7 +99,7 @@ youtube-breakout full --help
 | `metadata+visual` | yes | no | best effort | no |
 | `full-public` | yes | best effort | best effort | best effort |
 
-Missing optional layers do not silently become zero. Reports use explicit states such as `NOT_REQUESTED`, `MISSING_*`, `NO_TRANSCRIPT:*`, or `visual_metrics_unavailable`.
+Missing optional layers and missing public counts do not silently become zero. Reports use explicit states such as `NOT_REQUESTED`, `MISSING_*`, `NO_TRANSCRIPT:*`, or `visual_metrics_unavailable`; degraded visual artifacts do not receive visual evidence credit.
 
 ## Channel-normalized scoring
 
@@ -117,7 +118,7 @@ Default interpretation:
 | `10×–19.99×` | breakout |
 | `≥ 20×` | extreme breakout |
 
-A channel needs a minimum baseline sample. If it does not have one, the tool emits `INSUFFICIENT_CHANNEL_BASELINE`; it does not pretend that the multiplier is reliable.
+A channel needs a minimum usable public-view baseline sample. If it does not have one, the tool emits `INSUFFICIENT_CHANNEL_BASELINE`; it does not pretend that the multiplier is reliable.
 
 The ranking also records views/day, topic-relative velocity when available, comment rate, evidence coverage, and counterexamples. See [METHODOLOGY.md](METHODOLOGY.md).
 
@@ -136,6 +137,8 @@ A run writes latest artifacts to `<project-root>/result/` and an immutable run c
 - `source-ledger.csv`
 - `breakout-visual-manifest.json`
 - `breakout-latest.json`
+
+If the same run id already exists under `result/breakout-runs/`, the analyzer refuses to overwrite it. Run ids and video-id-derived paths must be simple slugs; absolute paths, parent traversal, separators, invalid characters, and symlink escapes are rejected.
 
 ## `PATTERN_BANK`
 
@@ -200,6 +203,8 @@ The optional visual layer downloads public thumbnails and computes local pixel m
 - simple descriptive labels.
 
 It does **not** reliably detect faces, read thumbnail text, understand composition, or infer why a thumbnail performed. OCR and semantic vision are not included in the base package. Missing Pillow produces an explicit degraded status.
+
+Thumbnail downloads are HTTPS-only, restricted to documented YouTube thumbnail hosts, validated across redirects, capped by size, and accepted only when the response has an image content type and supported image bytes. Unsafe URLs, unsafe redirects, oversized payloads, and non-images produce deterministic degraded/error rows.
 
 ## Public-data and platform limits
 
@@ -283,6 +288,12 @@ Release checks:
 ```bash
 python scripts/privacy_scan.py .
 python scripts/release_gate.py
+```
+
+`scripts/release_gate.py` does not collect from YouTube by default. It runs unit and security-negative tests, builds wheel and sdist archives in a temporary directory, checks the archives, installs the wheel and its declared runtime dependencies into a clean virtual environment, checks the installed dependency set, invokes the installed CLI, generates and scans offline fixtures, and validates the standalone skill copy. Build isolation and the dependency install may read from the configured Python package index. A best-effort live public collection smoke is separate and opt-in:
+
+```bash
+python scripts/release_gate.py --live-network-smoke
 ```
 
 ## Status

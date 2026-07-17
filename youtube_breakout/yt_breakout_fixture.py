@@ -7,7 +7,7 @@ import os
 from pathlib import Path
 from typing import Any
 
-from .common import write_json, write_jsonl, write_text
+from .common import public_path_label, safe_child_path, write_json, write_jsonl, write_text
 from .yt_breakout_analyzer import AnalysisOptions, analyze_project
 
 
@@ -84,7 +84,7 @@ def baseline(channel_name: str, channel_url: str, median_views: int, sample_size
 
 
 def write_comments(project_root: Path, row: dict[str, Any], comments: list[str]) -> None:
-    out_dir = project_root / "data" / "comments" / row["video_id"]
+    out_dir = safe_child_path(project_root / "data" / "comments", row["video_id"], field="video_id")
     rows = [
         {
             "video_id": row["video_id"],
@@ -352,7 +352,7 @@ def write_fixture_project(project_root: Path) -> dict[str, Any]:
         index.append({
             "channel_name": channel_name,
             "channel_url": channel_url,
-            "path": str(out_path),
+            "path": public_path_label(out_path, root=project_root),
             "sample_size": sample_size,
             "median_views": median_views,
             "status": "ok",

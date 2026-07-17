@@ -3,13 +3,21 @@ from __future__ import annotations
 import argparse
 import json
 import os
-import shutil
 import subprocess
 import sys
 from importlib.resources import files
 from pathlib import Path
 
 MODES = ("metadata-only", "metadata+comments", "metadata+visual", "full-public")
+
+
+def public_project_label(path: Path, root: Path | None = None) -> str:
+    base = (root or Path.cwd()).resolve()
+    candidate = path.resolve()
+    try:
+        return candidate.relative_to(base).as_posix() or "."
+    except ValueError:
+        return candidate.name
 
 
 def package_config(name: str) -> Path:
@@ -138,7 +146,10 @@ def command_analyze(args: argparse.Namespace) -> None:
 
 def command_fixture(args: argparse.Namespace) -> None:
     if args.project_root.exists() and any(args.project_root.iterdir()) and not args.force:
-        raise SystemExit("Fixture target is not empty; rerun with --force or choose an empty directory.")
+        raise SystemExit(
+            f"Fixture target is not empty; rerun with --force or choose an empty directory: "
+            f"{public_project_label(args.project_root)}"
+        )
     args.project_root.mkdir(parents=True, exist_ok=True)
     run_module("yt_breakout_fixture", args.project_root, [
         "--project-root", str(args.project_root.resolve()), "--niche", args.niche,
@@ -170,8 +181,9 @@ def command_full(args: argparse.Namespace) -> None:
 def main() -> None:
     args = build_parser().parse_args()
     if args.command == "init":
-        ensure_project(args.project_root.resolve(), force=args.force)
-        print(args.project_root.resolve())
+        project_root = args.project_root.resolve()
+        ensure_project(project_root, force=args.force)
+        print(public_project_label(project_root))
     elif args.command == "search":
         command_search(args)
     elif args.command == "analyze":

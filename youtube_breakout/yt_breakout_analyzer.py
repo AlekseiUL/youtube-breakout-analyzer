@@ -17,11 +17,16 @@ from typing import Any
 from .common import (
     load_channel_watchlist,
     load_yaml,
+    max_optional_int,
     now_iso,
+    optional_int,
+    public_path_label as common_public_path_label,
     read_json,
     read_jsonl,
     safe_int,
+    safe_child_path,
     time_slug,
+    validate_path_slug,
     write_json,
     write_text,
 )
@@ -67,16 +72,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 def public_path_label(path: str | Path | None, project_root: Path) -> str | None:
     """Return a release-safe path label without serializing a user's home directory."""
-    if path is None:
-        return None
-    candidate = Path(path).resolve()
-    try:
-        return candidate.relative_to(project_root.resolve()).as_posix()
-    except ValueError:
-        try:
-            return f"package:{candidate.relative_to(Path(__file__).resolve().parent).as_posix()}"
-        except ValueError:
-            return candidate.name
+    return common_public_path_label(path, root=project_root)
 
 
 def resolve_existing_path(project_root: Path, raw: str | Path | None, default: Path | None = None) -> Path | None:
@@ -197,7 +193,7 @@ def load_baselines(project_root: Path) -> tuple[dict[str, dict[str, Any]], list[
             payload = read_json(path)
         except (OSError, UnicodeError, json.JSONDecodeError):
             continue
-        payload["_path"] = str(path)
+        payload["_path"] = public_path_label(path, project_root)
         rows.append(payload)
         for key in [payload.get("channel_url"), payload.get("channel_name")]:
             normalized = norm_key(key)
@@ -226,8 +222,8 @@ def merge_video(target: dict[str, dict[str, Any]], row: dict[str, Any]) -> None:
         "channel_url": None,
         "published_at": None,
         "duration": None,
-        "views": 0,
-        "comments_count": 0,
+        "views": None,
+        "comments_count": None,
         "description_snippet": "",
         "thumbnail_url": None,
         "queries": set(),
@@ -239,8 +235,8 @@ def merge_video(target: dict[str, dict[str, Any]], row: dict[str, Any]) -> None:
     for field in ["title", "video_url", "video_id", "channel_name", "channel_url", "published_at", "duration", "description_snippet", "thumbnail_url", "collected_at"]:
         if not item.get(field) and row.get(field):
             item[field] = row.get(field)
-    item["views"] = max(safe_int(item.get("views")), safe_int(row.get("views")))
-    item["comments_count"] = max(safe_int(item.get("comments_count")), safe_int(row.get("comments_count")))
+    item["views"] = max_optional_int(item.get("views"), row.get("views"))
+    item["comments_count"] = max_optional_int(item.get("comments_count"), row.get("comments_count"))
     if row.get("query"):
         item["queries"].add(str(row.get("query")))
     for query in row.get("queries") or []:
@@ -327,14 +323,15 @@ def enrich_channel_signals(
     min_samples = int((config.get("baseline") or {}).get("min_channel_samples") or 5)
     for item in videos:
         baseline = find_baseline(item, baselines_by_key)
-        views = safe_int(item.get("views"))
-        comments = safe_int(item.get("comments_count"))
+        views = optional_int(item.get("views"))
+        comments = optional_int(item.get("comments_count"))
         age_days = video_age_days(item.get("published_at"), analysis_at)
-        views_per_day = round(views / age_days, 2) if age_days else None
-        comments_per_day = round(comments / age_days, 2) if age_days else None
-        comment_rate = round((comments / views) * 1000, 3) if views > 0 else None
+        views_per_day = round(views / age_days, 2) if views is not None and age_days else None
+        comments_per_day = round(comments / age_days, 2) if comments is not None and age_days else None
+        comment_rate = round((comments / views) * 1000, 3) if comments is not None and views and views > 0 else None
 
-        sample_size = safe_int(baseline.get("sample_size")) if baseline else 0
+        raw_sample_size = safe_int(baseline.get("sample_size")) if baseline else 0
+        sample_size = safe_int(baseline.get("usable_view_samples"), default=raw_sample_size) if baseline else 0
         median_views = number(baseline.get("median_views")) if baseline else None
         median_comments = number(baseline.get("median_comments")) if baseline else None
         baseline_status = "OK"
@@ -344,10 +341,10 @@ def enrich_channel_signals(
             baseline_status = "INSUFFICIENT_CHANNEL_BASELINE"
 
         multiplier = None
-        if baseline_status == "OK" and median_views and median_views > 0 and views > 0:
+        if baseline_status == "OK" and median_views and median_views > 0 and views is not None and views > 0:
             multiplier = round(views / median_views, 2)
         comment_multiplier = None
-        if baseline_status == "OK" and median_comments and median_comments > 0 and comments > 0:
+        if baseline_status == "OK" and median_comments and median_comments > 0 and comments is not None and comments > 0:
             comment_multiplier = round(comments / median_comments, 2)
 
         item.update({
@@ -365,7 +362,8 @@ def enrich_channel_signals(
             "channel_baseline": {
                 "matched": bool(baseline),
                 "status": baseline_status,
-                "sample_size": sample_size,
+                "sample_size": raw_sample_size,
+                "usable_view_samples": sample_size,
                 "median_views": median_views,
                 "median_comments": median_comments,
                 "channel_name": baseline.get("channel_name") if baseline else None,
@@ -612,15 +610,24 @@ def extract_features_for_video(
         visual_text_parts: list[str] = []
         thumb = thumbnails.get(video_id)
         vision = thumbnail_vision.get(video_id)
+        visual_statuses: list[str] = []
         if thumb:
             metrics = thumb.get("visual_metrics") or {}
-            visual_text_parts.extend(str(label) for label in metrics.get("labels") or [])
-            visual_text_parts.append(str(thumb.get("status") or ""))
+            thumb_status = str(thumb.get("status") or "").lower()
+            metrics_status = str(metrics.get("status") or "").lower()
+            if thumb_status == "ok" and metrics_status == "ok":
+                visual_text_parts.extend(str(label) for label in metrics.get("labels") or [])
+            else:
+                visual_statuses.append(str(metrics.get("status") or thumb.get("status") or "unavailable"))
         if vision:
-            visual_text_parts.extend(str(value) for value in vision.get("main_visuals") or [])
-            visual_text_parts.extend(str(value) for value in vision.get("visible_text") or [])
-            visual_text_parts.append(str(vision.get("hook_type") or ""))
-            visual_text_parts.append(str(vision.get("why_it_may_work") or ""))
+            vision_status = str(vision.get("status") or "ok").lower()
+            if vision_status == "ok":
+                visual_text_parts.extend(str(value) for value in vision.get("main_visuals") or [])
+                visual_text_parts.extend(str(value) for value in vision.get("visible_text") or [])
+                visual_text_parts.append(str(vision.get("hook_type") or ""))
+                visual_text_parts.append(str(vision.get("why_it_may_work") or ""))
+            else:
+                visual_statuses.append(str(vision.get("status") or "unavailable"))
         if visual_text_parts:
             coverage["visual"] = "OK"
             extract_rule_features(
@@ -630,6 +637,9 @@ def extract_features_for_video(
                 haystack=clean_join(visual_text_parts),
                 evidence="; ".join(visual_text_parts[:8]),
             )
+        elif thumb or vision:
+            status_label = ",".join(sorted(set(visual_statuses))) or "unavailable"
+            coverage["visual"] = f"DEGRADED_VISUAL_ARTIFACTS:{status_label}"
         else:
             coverage["visual"] = "MISSING_VISUAL_ARTIFACTS"
         coverage["frame_sampling"] = "MANIFEST_ONLY"
@@ -1022,6 +1032,15 @@ def best_pattern_label(patterns: list[dict[str, Any]], prefix: str, fallback: st
     return fallback
 
 
+def playbook_evidence_patterns(patterns: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    return [
+        pattern for pattern in patterns
+        if pattern.get("confidence") in {"MEDIUM", "HIGH"}
+        and safe_int(pattern.get("evidence_count")) >= 2
+        and safe_int(pattern.get("channels_count")) >= 2
+    ]
+
+
 def evidence_titles(patterns: list[dict[str, Any]], limit: int = 3) -> list[str]:
     titles: list[str] = []
     for pattern in patterns:
@@ -1035,20 +1054,29 @@ def evidence_titles(patterns: list[dict[str, Any]], limit: int = 3) -> list[str]
 
 
 def render_playbook(analysis: dict[str, Any]) -> str:
-    patterns = analysis["patterns"]
+    patterns = playbook_evidence_patterns(analysis["patterns"])
+    if not patterns:
+        return "\n".join([
+            f"# Content Playbook - {analysis['niche']['label']}",
+            "",
+            "INSUFFICIENT_EVIDENCE",
+            "",
+            "No recurring cross-channel pattern met the minimum evidence threshold for a production playbook.",
+        ]) + "\n"
+
     examples = evidence_titles(patterns)
     playbook_type = analysis["niche"].get("playbook_type")
     if playbook_type == "walking":
         lines = [
             "# Shooting Playbook - Walking",
             "",
-            f"Viewer job: {best_pattern_label(patterns, 'audience_motivation:', 'virtual travel, relaxation, trip planning, or treadmill walking')}",
-            f"Location: {best_pattern_label(patterns, 'city:', 'specific city/district with public route')}",
-            f"Rare condition / moment: {best_pattern_label(patterns, 'weather:', 'clear condition, rain, snow, night, festival, or ordinary weekday')}",
+            f"Viewer job: {best_pattern_label(patterns, 'audience_motivation:', 'INSUFFICIENT_EVIDENCE')}",
+            f"Location: {best_pattern_label(patterns, 'city:', 'INSUFFICIENT_EVIDENCE')}",
+            f"Rare condition / moment: {best_pattern_label(patterns, 'weather:', 'INSUFFICIENT_EVIDENCE')}",
             "Opening 30 seconds: Start with immediate place/context signal, stable movement, and ambient sound if available.",
             "Route arc: Move from a readable starting point through a distinct middle section toward one visual payoff.",
-            f"Visual payoffs: {best_pattern_label(patterns, 'thumbnail:', 'depth, reflections, landmark, crowd, or residential reality')}",
-            f"Duration range from evidence: {best_pattern_label(patterns, 'duration:', 'standard_walk to long_walk')}",
+            f"Visual payoffs: {best_pattern_label(patterns, 'thumbnail:', 'INSUFFICIENT_EVIDENCE')}",
+            f"Duration range from evidence: {best_pattern_label(patterns, 'duration:', 'INSUFFICIENT_EVIDENCE')}",
             "Camera movement notes: Keep pace steady; avoid rapid pans unless the route payoff requires it.",
             "Audio notes: Use real ambient sound where possible; mark speech/music/wind gaps explicitly during review.",
             "Title formula: place + condition + moment + format, with resolution/no-talking markers only when true.",
@@ -1062,14 +1090,33 @@ def render_playbook(analysis: dict[str, Any]) -> str:
         ])
         return "\n".join(lines).strip() + "\n"
 
+    if playbook_type in {"generic", "content", None}:
+        lines = [
+            "# Content Experiment Brief - Generic",
+            "",
+            f"Audience promise: {best_pattern_label(patterns, 'audience_promise:', 'INSUFFICIENT_EVIDENCE')}",
+            f"Title formula: {best_pattern_label(patterns, 'title_formula:', 'INSUFFICIENT_EVIDENCE')}",
+            f"Format: {best_pattern_label(patterns, 'format:', 'INSUFFICIENT_EVIDENCE')}",
+            f"Thumbnail signal: {best_pattern_label(patterns, 'thumbnail:', 'INSUFFICIENT_EVIDENCE')}",
+            f"Duration range from evidence: {best_pattern_label(patterns, 'duration:', 'INSUFFICIENT_EVIDENCE')}",
+            "Controlled variable: Change one observed pattern per upload.",
+            "Evidence examples:",
+        ]
+        lines.extend(f"- {title}" for title in examples)
+        lines.extend([
+            "What is hypothesis vs proven repetition:",
+            f"- Observed repetition is evidence for association only; {CAUSALITY_WARNING}.",
+        ])
+        return "\n".join(lines).strip() + "\n"
+
     lines = [
         "# Content Experiment Brief - AI Automation",
         "",
-        f"Audience job: {best_pattern_label(patterns, 'audience_signal:', 'implementation intent or trust-building proof')}",
-        f"Tool/product: {best_pattern_label(patterns, 'tool_product:', 'specific tool named in title and demo')}",
-        f"Concrete use case: {best_pattern_label(patterns, 'concrete_use_case:', 'one workflow with a visible before/after')}",
-        f"Format: {best_pattern_label(patterns, 'format:', 'demonstration or tutorial')}",
-        f"Proof/result: {best_pattern_label(patterns, 'proof:', 'real metric or concrete artifact when available')}",
+        f"Audience job: {best_pattern_label(patterns, 'audience_signal:', 'INSUFFICIENT_EVIDENCE')}",
+        f"Tool/product: {best_pattern_label(patterns, 'tool_product:', 'INSUFFICIENT_EVIDENCE')}",
+        f"Concrete use case: {best_pattern_label(patterns, 'concrete_use_case:', 'INSUFFICIENT_EVIDENCE')}",
+        f"Format: {best_pattern_label(patterns, 'format:', 'INSUFFICIENT_EVIDENCE')}",
+        f"Proof/result: {best_pattern_label(patterns, 'proof:', 'INSUFFICIENT_EVIDENCE')}",
         "Controlled variable: Change one packaging/content variable per upload.",
         "Title formula: tool + use case + specific result or constraint.",
         "Thumbnail formula: recognizable workflow/proof element; do not imply private metrics you do not have.",
@@ -1310,8 +1357,15 @@ def write_source_ledger_csv(path: Path, rows: list[dict[str, Any]]) -> None:
 
 
 def write_outputs(analysis: dict[str, Any], out_dir: Path, run_id: str, project_root: Path) -> dict[str, str]:
-    run_dir = out_dir / "breakout-runs" / run_id
-    run_dir.mkdir(parents=True, exist_ok=True)
+    run_id = validate_path_slug(run_id, field="run_id")
+    runs_root = out_dir / "breakout-runs"
+    run_dir = safe_child_path(runs_root, run_id, field="run_id")
+    try:
+        run_dir.mkdir(parents=True, exist_ok=False)
+    except FileExistsError as exc:
+        raise FileExistsError(
+            f"run output already exists and will not be overwritten: {public_path_label(run_dir, project_root)}"
+        ) from exc
     latest_paths = {
         "analysis_json": out_dir / "breakout-analysis.json",
         "analysis_csv": out_dir / "breakout-analysis.csv",

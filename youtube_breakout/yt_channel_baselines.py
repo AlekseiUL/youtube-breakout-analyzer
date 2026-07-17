@@ -4,7 +4,6 @@ from __future__ import annotations
 import argparse
 import json
 import math
-import shutil
 import subprocess
 import sys
 from statistics import median
@@ -16,16 +15,15 @@ from .common import (
     latest_search_bundle,
     load_channel_watchlist,
     normalize_video_record,
+    optional_int,
+    public_path_label,
     read_json,
-    run_command,
-    safe_int,
     slugify,
     time_slug,
     now_iso,
     write_json,
+    run_yt_dlp,
 )
-
-YT_DLP = shutil.which("yt-dlp") or "yt-dlp"
 
 
 def parse_args() -> argparse.Namespace:
@@ -81,14 +79,12 @@ def channel_videos_url(channel_url: str) -> str:
 
 
 def fetch_channel_video_urls(channel_url: str, limit: int, timeout_sec: float) -> list[str]:
-    result = run_command([
-        YT_DLP,
+    result = run_yt_dlp([
         "--flat-playlist",
         "--playlist-end",
         str(limit),
         "--dump-single-json",
-        channel_videos_url(channel_url),
-    ], timeout_sec=timeout_sec)
+    ], [channel_videos_url(channel_url)], timeout_sec=timeout_sec)
     payload = json.loads(result.stdout)
     return [f"https://www.youtube.com/watch?v={item['id']}" for item in (payload.get("entries") or []) if item.get("id")]
 
@@ -96,7 +92,7 @@ def fetch_channel_video_urls(channel_url: str, limit: int, timeout_sec: float) -
 def fetch_metadata_batch(urls: list[str], timeout_sec: float) -> list[dict[str, Any]]:
     if not urls:
         return []
-    result = run_command([YT_DLP, "--dump-json", "--skip-download", *urls], timeout_sec=timeout_sec)
+    result = run_yt_dlp(["--dump-json", "--skip-download"], urls, timeout_sec=timeout_sec)
     rows: list[dict[str, Any]] = []
     for line in result.stdout.splitlines():
         line = line.strip()
@@ -122,8 +118,8 @@ def percentile(values: list[int], pct: float) -> float | None:
 
 def build_baseline(channel: dict[str, Any], raw_rows: list[dict[str, Any]], collected_at: str) -> dict[str, Any]:
     videos = [normalize_video_record(row, source="channel_baseline", query=channel.get("name"), collected_at=collected_at, source_provider="yt_dlp_channel") for row in raw_rows]
-    views = [safe_int(row.get("views")) for row in videos if safe_int(row.get("views")) > 0]
-    comments = [safe_int(row.get("comments_count")) for row in videos if safe_int(row.get("comments_count")) >= 0]
+    views = [value for value in (optional_int(row.get("views")) for row in videos) if value is not None and value > 0]
+    comments = [value for value in (optional_int(row.get("comments_count")) for row in videos) if value is not None and value >= 0]
     median_views = float(median(views)) if views else None
     avg_views = round(sum(views) / len(views), 2) if views else None
     median_comments = float(median(comments)) if comments else None
@@ -182,8 +178,9 @@ def main() -> None:
             index.append({
                 "channel_name": baseline.get("channel_name"),
                 "channel_url": baseline.get("channel_url"),
-                "path": str(out_path),
+                "path": public_path_label(out_path),
                 "sample_size": baseline.get("sample_size"),
+                "usable_view_samples": baseline.get("usable_view_samples"),
                 "median_views": baseline.get("median_views"),
                 "status": baseline.get("status"),
             })
@@ -213,7 +210,11 @@ def main() -> None:
     run_path = CHANNEL_BASELINES_DIR / f"run-{run_id}.json"
     write_json(index_path, summary)
     write_json(run_path, summary)
-    print(json.dumps({"index_path": str(index_path), "run_path": str(run_path), **summary}, ensure_ascii=False, indent=2))
+    print(json.dumps({
+        "index_path": public_path_label(index_path),
+        "run_path": public_path_label(run_path),
+        **summary,
+    }, ensure_ascii=False, indent=2))
 
 
 if __name__ == "__main__":

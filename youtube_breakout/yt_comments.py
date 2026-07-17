@@ -3,17 +3,13 @@ from __future__ import annotations
 
 import argparse
 import json
-import shutil
 import subprocess
 import sys
 import tempfile
 from pathlib import Path
 from typing import Any
 
-from .common import COMMENTS_DIR, now_iso, resolve_video_inputs, run_command, write_json, write_jsonl
-
-
-YT_DLP = shutil.which("yt-dlp") or "yt-dlp"
+from .common import COMMENTS_DIR, now_iso, resolve_video_inputs, run_yt_dlp, safe_child_path, write_json, write_jsonl
 SORT_ALIASES = {
     "top": "top",
     "new": "new",
@@ -50,8 +46,7 @@ def fetch_comments(url: str, sort_mode: str, timeout_sec: float) -> dict[str, An
     extractor_sort = SORT_ALIASES[sort_mode]
     with tempfile.TemporaryDirectory(prefix="yt-comments-") as tmpdir:
         out_template = str(Path(tmpdir) / "%(id)s.%(ext)s")
-        run_command([
-            YT_DLP,
+        run_yt_dlp([
             "--skip-download",
             "--write-info-json",
             "--write-comments",
@@ -59,8 +54,7 @@ def fetch_comments(url: str, sort_mode: str, timeout_sec: float) -> dict[str, An
             f"youtube:comment_sort={extractor_sort}",
             "-o",
             out_template,
-            url,
-        ], timeout_sec=timeout_sec)
+        ], [url], timeout_sec=timeout_sec)
         info_files = sorted(Path(tmpdir).glob("*.info.json"))
         if not info_files:
             return {}
@@ -148,7 +142,7 @@ def main() -> None:
             continue
 
         video_id = item.get("video_id")
-        out_dir = COMMENTS_DIR / (video_id or "unknown")
+        out_dir = safe_child_path(COMMENTS_DIR, video_id or "unknown", field="video_id")
         latest_meta = out_dir / "latest.meta.json"
         latest_jsonl = out_dir / "latest.jsonl"
         if latest_meta.exists() and latest_jsonl.exists() and not args.overwrite:
@@ -217,7 +211,7 @@ def main() -> None:
             continue
 
         video_id = payload.get("id") or video_id or "unknown"
-        out_dir = COMMENTS_DIR / video_id
+        out_dir = safe_child_path(COMMENTS_DIR, video_id, field="video_id")
         out_dir.mkdir(parents=True, exist_ok=True)
 
         merged_rows = merge_comment_rows(rows_by_sort)

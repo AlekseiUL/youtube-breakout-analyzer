@@ -8,31 +8,18 @@ from pathlib import Path
 SKIP_DIRS = {".git", ".venv", "__pycache__", ".pytest_cache", "dist", "build"}
 TEXT_SUFFIXES = {".py", ".md", ".toml", ".yaml", ".yml", ".json", ".txt", ".csv", ""}
 
-# Fragments are joined so this scanner does not trigger on its own source.
-FORBIDDEN = {
-    "private workspace": "MIKE" + "_CENTER",
-    "private username": "aleksej" + "ulanov",
-    "private owner name": "Alek" + "sey",
-    "private agent label": "Mike/" + "Hermes",
-    "private specialist label": "Tu" + "co",
-    "private specialist label 2": "La" + "lo",
-    "private specialist label 3": "Chu" + "ck",
-    "private specialist label 4": "Na" + "cho",
-    "private specialist label 5": "Wal" + "ter",
-    "private specialist label 6": "Je" + "sse",
-    "private specialist label 7": "Ha" + "nk",
-    "private product label": "SP" + "ROUT",
-    "private legacy label": "Anti" + "botik",
-    "private format label": "OPEN ROUTE" + " POV",
-    "private profile path": ".her" + "mes/profiles",
-    "private workflow label": "kan" + "ban",
-}
 SECRET_PATTERNS = [
     re.compile(r"(?i)(api[_-]?key|token|password|secret)\s*[:=]\s*['\"][^'\"]{8,}['\"]"),
     re.compile(r"(?i)bearer\s+[a-z0-9._-]{16,}"),
     re.compile(r"-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----"),
 ]
-ABSOLUTE_HOME = re.compile(r"/Users/[A-Za-z0-9._-]+/")
+ABSOLUTE_PATH_PATTERNS = [
+    ("absolute macOS user home path", re.compile(r"/Users/[A-Za-z0-9._-]+/")),
+    ("absolute POSIX user home path", re.compile(r"/home/[A-Za-z0-9._-]+/")),
+    ("absolute POSIX workspace path", re.compile(r"/(?:workspace|workspaces)/[A-Za-z0-9._-]+/")),
+    ("absolute Windows user home path", re.compile(r"(?i)\b[a-z]:[\\/]+users[\\/]+[^\\/]+[\\/]+")),
+    ("tilde home path", re.compile(r"~/[A-Za-z0-9._/-]+")),
+]
 
 
 def iter_text_files(root: Path):
@@ -45,17 +32,18 @@ def iter_text_files(root: Path):
 
 def scan(root: Path) -> list[str]:
     findings: list[str] = []
+    root_text = str(root)
     for path in iter_text_files(root):
         try:
             text = path.read_text(encoding="utf-8")
         except UnicodeDecodeError:
             continue
         rel = path.relative_to(root)
-        for label, needle in FORBIDDEN.items():
-            if needle in text:
+        if root_text and root_text in text:
+            findings.append(f"{rel}: absolute scan-root path")
+        for label, pattern in ABSOLUTE_PATH_PATTERNS:
+            if pattern.search(text):
                 findings.append(f"{rel}: {label}")
-        if ABSOLUTE_HOME.search(text):
-            findings.append(f"{rel}: absolute user home path")
         for pattern in SECRET_PATTERNS:
             if pattern.search(text):
                 findings.append(f"{rel}: possible secret material")

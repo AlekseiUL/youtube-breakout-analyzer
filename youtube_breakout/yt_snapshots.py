@@ -3,8 +3,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import shutil
-from pathlib import Path
 from typing import Any
 
 from .common import (
@@ -15,16 +13,15 @@ from .common import (
     load_channel_watchlist,
     normalize_video_record,
     now_iso,
+    public_path_label,
     resolve_video_inputs,
-    run_command,
+    run_yt_dlp,
+    safe_child_path,
     time_slug,
     write_json,
     write_jsonl,
     append_jsonl,
 )
-
-
-YT_DLP = shutil.which("yt-dlp") or "yt-dlp"
 
 
 def parse_args() -> argparse.Namespace:
@@ -42,7 +39,7 @@ def parse_args() -> argparse.Namespace:
 def fetch_metadata_batch(urls: list[str]) -> list[dict[str, Any]]:
     if not urls:
         return []
-    result = run_command([YT_DLP, "--dump-json", "--skip-download", *urls])
+    result = run_yt_dlp(["--dump-json", "--skip-download"], urls)
     rows: list[dict[str, Any]] = []
     for line in result.stdout.splitlines():
         line = line.strip()
@@ -52,14 +49,12 @@ def fetch_metadata_batch(urls: list[str]) -> list[dict[str, Any]]:
 
 
 def fetch_channel_video_urls(channel_url: str, limit: int) -> list[str]:
-    result = run_command([
-        YT_DLP,
+    result = run_yt_dlp([
         "--flat-playlist",
         "--playlist-end",
         str(limit),
         "--dump-single-json",
-        channel_url,
-    ])
+    ], [channel_url])
     payload = json.loads(result.stdout)
     return [f"https://www.youtube.com/watch?v={item['id']}" for item in (payload.get("entries") or []) if item.get("id")]
 
@@ -67,7 +62,10 @@ def fetch_channel_video_urls(channel_url: str, limit: int) -> list[str]:
 def transcript_exists(video_id: str | None) -> bool:
     if not video_id:
         return False
-    return (TRANSCRIPTS_DIR / video_id / "latest.json").exists()
+    try:
+        return (safe_child_path(TRANSCRIPTS_DIR, video_id, field="video_id") / "latest.json").exists()
+    except ValueError:
+        return False
 
 
 def main() -> None:
@@ -123,15 +121,15 @@ def main() -> None:
     write_json(summary_path, {
         "captured_at": captured_at,
         "count": len(rows),
-        "run_path": str(run_path),
-        "history_path": str(history_path),
+        "run_path": public_path_label(run_path),
+        "history_path": public_path_label(history_path),
     })
 
     print(json.dumps({
         "captured_at": captured_at,
         "count": len(rows),
-        "run_path": str(run_path),
-        "history_path": str(history_path),
+        "run_path": public_path_label(run_path),
+        "history_path": public_path_label(history_path),
     }, ensure_ascii=False, indent=2))
 
 
