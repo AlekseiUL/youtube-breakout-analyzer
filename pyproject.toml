@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "youtube-breakout-analyzer"
-version = "0.1.1"
+version = "0.1.2"
 description = "Local-first YouTube breakout analysis from public metadata, channel baselines, and optional public signals."
 readme = "README.md"
 requires-python = ">=3.10"
