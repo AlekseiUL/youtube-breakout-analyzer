@@ -1,6 +1,6 @@
 build==1.6.1
 coverage==7.17.0
-hatchling==1.32.4
+hatchling==1.33.0
 iniconfig==2.3.1
 packaging==26.3
 pathspec==1.1.1
